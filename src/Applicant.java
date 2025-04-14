@@ -7,6 +7,36 @@ public class Applicant extends User {
     private String applicationStatus;
     private FlatType bookedFlatType;
 
+    public Applicant(String nric, String password, int age, String maritalStatus, List<Enquiry> enquiries) {
+        super(nric, password, age, maritalStatus, enquiries);
+    }
+
+    // Getters and Setters
+    public Project getAppliedProject() {
+        return appliedProject;
+    }
+
+    public void setAppliedProject(Project appliedProject) {
+        this.appliedProject = appliedProject;
+    }
+
+    public String getApplicationStatus() {
+        return applicationStatus;
+    }
+
+    public void setApplicationStatus(String applicationStatus) {
+        this.applicationStatus = applicationStatus;
+    }
+
+    public FlatType getBookedFlatType() {
+        return bookedFlatType;
+    }
+
+    public void setBookedFlatType(FlatType bookedFlatType) {
+        this.bookedFlatType = bookedFlatType;
+    }
+
+    // Implementation Methods
     public List<Project> viewOpenProjects() {
         // implementation
         return null;
