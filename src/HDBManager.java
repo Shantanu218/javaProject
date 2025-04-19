@@ -195,39 +195,154 @@ public class HDBManager extends User {
        APPLICATION / WITHDRAWAL / REPORT / ENQUIRY METHODS
        ====================================================== */
 
-    public boolean approveApplication(Application application) {
-        // TODO: To be implemented
+    /* =====================================================
+        Approve a Pending Application
+    ===================================================== */
+
+
+    public boolean approveApplication(Application application)
+    {
+        if(application == null)
+        {
+            return false;
+        }
+        String status = application.getStatus();
+        FlatType requestedFlat = application.getFlatType();
+        Project project = application.getProject();
+
+        if (requestedFlat == FlatType.Two_Room && project.getTwoRoomUnits() > 0)
+        {
+            project.setTwoRoomUnits(project.getTwoRoomUnits() - 1);
+            application.setStatus("Successful");
+            return true;
+        }
+        else if (requestedFlat == FlatType.Three_Room && project.getThreeRoomUnits() > 0)
+        {
+            project.setThreeRoomUnits(project.getThreeRoomUnits() - 1);
+            application.setStatus("Successful");
+            return true;
+        }
+
         return false;
     }
 
-    public boolean rejectApplication(Application application) {
-        // TODO: To be implemented
+    /* ===================================================== 
+                Reject a Pending Application
+    ===================================================== */
+
+    public boolean rejectApplication(Application application)
+    {
+        if (application == null)
+        {
+            return false;
+        }
+        if(!application.getStatus().equalsIgnoreCase("Pending"))
+        {
+            return false;
+        }
+        application.setStatus("Unsuccessful");
+        return true;
+    }
+
+    /* ===================================================== 
+                Approve a Withdrawal Request
+    ===================================================== */
+
+    public boolean approveWithdrawal(Application application)
+    {
+        if (application == null)
+        {
+            return false;
+        }
+        String status = application.getStatus();
+        FlatType requestedFlat = application.getFlatType();
+        Project project = application.getProject();
+
+        if(status.equalsIgnoreCase("Pending") || status.equalsIgnoreCase("Booked"))
+        {
+            application.setStatus("Withdrawn");
+
+            if(status.equalsIgnoreCase("Booked"))
+            {
+                if(requestedFlat == FlatType.Two_Room)
+                {
+                    project.setTwoRoomUnits(project.getTwoRoomUnits() + 1);
+                }
+                else if(requestedFlat == FlatType.Three_Room)
+                {
+                    project.setThreeRoomUnits(project.getThreeRoomUnits() + 1);
+                }
+            }
+            return true;
+        }
         return false;
     }
 
-    public boolean approveWithdrawal(Application application) {
-        // TODO: To be implemented
+    /* ===================================================== 
+                Reject a Withdrawal Request
+    ===================================================== */
+
+    public boolean rejectWithdrawal(Application application)
+    {
+        if(application == null)
+        {
+            return false;
+        }
+        if(application.getStatus().equalsIgnoreCase("Withdrawal Requested"))
+        {
+            application.setStatus("Booked");
+            return true;
+        }
         return false;
+
     }
 
-    public boolean rejectWithdrawal(Application application) {
-        // TODO: To be implemented
-        return false;
+    /* ===================================================== 
+                Generate Flat Booking Report
+    ===================================================== */
+
+    public String generateFlatBookingReport(List <Application> applications)
+    {
+        StringBuilder report = new StringBuilder();
+
+        for(Application app : applications)
+        {
+            if (app.getStatus().equalsIgnoreCase("Booked"))
+            {
+                report.append("Applicant: ").append(app.getApplicant().getNric())
+                .append(", Age: ").append(app.getApplicant().getAge())
+                .append(", Marital Status: ").append(app.getApplicant().getMaritalStatus())
+                .append(", Flat Type: ").append(app.getFlatType())
+                .append(", Project: ").append(app.getProject().getProjectName())
+                .append(" (").append(app.getProject().getNeighborhood()).append(")")
+                .append("\n");
+            }
+        }
+        return report.toString();
     }
 
-    public String generateFlatBookingReport(List<Application> applications) {
-        // TODO: To be implemented
-        return "";
+    /* ===================================================== 
+                View All Enquiries
+    ===================================================== */
+
+    public List<Enquiry> viewAllEnquiries()
+    {
+        return EnquiryRepository.getAllEnquiries();
     }
 
-    public List<Enquiry> viewAllEnquiries() {
-        // TODO: To be implemented
-        return new ArrayList<>();
-    }
+    /* ===================================================== 
+                Reply to Enquiry
+    ===================================================== */
 
-    public boolean replyToEnquiry(Enquiry enquiry, String replyText) {
-        // TODO: To be implemented
-        return false;
+    public boolean replyToEnquiry(Enquiry enquiry, String replyText)
+    {
+        if (enquiry == null || replyText == null || replyText.trim().isEmpty())
+        {
+            return false;
+        }
+        enquiry.setReply(replyText);
+        enquiry.setStatus("Replied");
+        return true;
     }
 
     /* =======================================================
