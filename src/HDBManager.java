@@ -6,9 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * HDBManager is responsible for managing BTO project listings,
- * processing officer registrations, handling applications and withdrawals,
- * generating booking reports, and replying to enquiries.
+ * HDBManager is responsible for managing BTO projects, officer registrations,
+ * application approvals/withdrawals, report generation, and enquiry replies.
  */
 public class HDBManager extends User {
     private static final List<Project> allProjects = new ArrayList<>();
@@ -29,12 +28,8 @@ public class HDBManager extends User {
     }
 
     public void updateProject(Project oldProject, Project updatedProject) {
-        if (!allProjects.contains(oldProject)) {
-            System.out.println("Update failed: Project not found.");
-            return;
-        }
-        if (oldProject.getManagerInCharge() != this) {
-            System.out.println("Update failed: Not your project.");
+        if (!allProjects.contains(oldProject) || oldProject.getManagerInCharge() != this) {
+            System.out.println("Update failed: Unauthorized or not found.");
             return;
         }
         oldProject.setProjectName(updatedProject.getProjectName());
@@ -46,12 +41,8 @@ public class HDBManager extends User {
     }
 
     public boolean deleteProject(Project project) {
-        if (!allProjects.contains(project)) {
-            System.out.println("Delete failed: Project not found.");
-            return false;
-        }
-        if (project.getManagerInCharge() != this) {
-            System.out.println("Delete failed: Not your project.");
+        if (!allProjects.contains(project) || project.getManagerInCharge() != this) {
+            System.out.println("Delete failed: Unauthorized or not found.");
             return false;
         }
         allProjects.remove(project);
@@ -59,12 +50,8 @@ public class HDBManager extends User {
     }
 
     public boolean toggleProjectVisibility(Project project, boolean visibility) {
-        if (!allProjects.contains(project)) {
-            System.out.println("Toggle failed: Project not found.");
-            return false;
-        }
-        if (project.getManagerInCharge() != this) {
-            System.out.println("Toggle failed: Not your project.");
+        if (!allProjects.contains(project) || project.getManagerInCharge() != this) {
+            System.out.println("Toggle failed: Unauthorized or not found.");
             return false;
         }
         project.setVisibility(visibility);
@@ -100,27 +87,21 @@ public class HDBManager extends User {
     }
 
     public void approveOfficerRegistration(OfficerRegistration registration) {
-        if (!allOfficerRegistrations.contains(registration)) {
-            System.out.println("Approval failed: Registration not found.");
-            return;
+        if (allOfficerRegistrations.contains(registration)
+                && registration.getProject().getManagerInCharge() == this) {
+            registration.setStatus("Approved");
+        } else {
+            System.out.println("Approval failed: Unauthorized or not found.");
         }
-        if (registration.getProject().getManagerInCharge() != this) {
-            System.out.println("Approval failed: Not your project.");
-            return;
-        }
-        registration.setStatus("Approved");
     }
 
     public void rejectOfficerRegistration(OfficerRegistration registration) {
-        if (!allOfficerRegistrations.contains(registration)) {
-            System.out.println("Rejection failed: Registration not found.");
-            return;
+        if (allOfficerRegistrations.contains(registration)
+                && registration.getProject().getManagerInCharge() == this) {
+            registration.setStatus("Rejected");
+        } else {
+            System.out.println("Rejection failed: Unauthorized or not found.");
         }
-        if (registration.getProject().getManagerInCharge() != this) {
-            System.out.println("Rejection failed: Not your project.");
-            return;
-        }
-        registration.setStatus("Rejected");
     }
 
     /* ============================
@@ -133,16 +114,18 @@ public class HDBManager extends User {
         }
         FlatType type = application.getFlatTypeChosen();
         Project project = application.getProject();
+
+        boolean success = false;
         if (type == FlatType.Two_Room && project.getTwoRoomUnits() > 0) {
             project.setTwoRoomUnits(project.getTwoRoomUnits() - 1);
+            success = true;
         } else if (type == FlatType.Three_Room && project.getThreeRoomUnits() > 0) {
             project.setThreeRoomUnits(project.getThreeRoomUnits() - 1);
-        } else {
-            application.setStatus(ApplicationStatus.Unsuccessful);
-            return false;
+            success = true;
         }
-        application.setStatus(ApplicationStatus.Successful);
-        return true;
+
+        application.setStatus(success ? ApplicationStatus.Successful : ApplicationStatus.Unsuccessful);
+        return success;
     }
 
     public boolean rejectApplication(Application application) {
@@ -157,31 +140,38 @@ public class HDBManager extends User {
        WITHDRAWAL MANAGEMENT
        ============================ */
 
-    public boolean approveWithdrawal(Application application) {
-        if (application == null) return false;
-        ApplicationStatus s = application.getStatus();
+       public boolean approveWithdrawal(Application application) {
+        if (application == null || !application.isWithdrawalRequested()) {
+            return false;
+        }
+
+        ApplicationStatus current = application.getStatus();
         Project project = application.getProject();
         FlatType type = application.getFlatTypeChosen();
 
-        if (s == ApplicationStatus.Pending || s == ApplicationStatus.Booked) {
-            if (s == ApplicationStatus.Booked) {
-                if (type == FlatType.Two_Room) {
-                    project.setTwoRoomUnits(project.getTwoRoomUnits() + 1);
-                } else {
-                    project.setThreeRoomUnits(project.getThreeRoomUnits() + 1);
-                }
+        // If previously booked, return the unit
+        if (current == ApplicationStatus.Booked) {
+            if (type == FlatType.Two_Room) {
+                project.setTwoRoomUnits(project.getTwoRoomUnits() + 1);
+            } else {
+                project.setThreeRoomUnits(project.getThreeRoomUnits() + 1);
             }
-            application.setStatus(ApplicationStatus.Withdrawn);
-            return true;
         }
-        return false;
+
+        // Mark as withdrawn
+        application.setStatus(ApplicationStatus.Withdrawn); // add Withdrawn to enum if needed
+        return true;
     }
 
+    /* ===================================================== 
+       Reject a Withdrawal Request
+    ===================================================== */
     public boolean rejectWithdrawal(Application application) {
-        if (application == null || application.getStatus() != ApplicationStatus.WithdrawalRequested) {
+        if (application == null || !application.isWithdrawalRequested()) {
             return false;
         }
-        application.setStatus(ApplicationStatus.Booked);
+        // Simply clear the withdrawal request flag; leave status as-is (Pending or Booked)
+        application.setWithdrawalRequest(false);
         return true;
     }
 
@@ -223,26 +213,5 @@ public class HDBManager extends User {
         enquiry.addReply(enquiry.getEnquiryID(), replyText);
         enquiry.setRepliedBy(this);
         return true;
-    }
-
-    /* ===================================
-       OPTIONAL DEMO MAIN METHOD
-       =================================== */
-
-    public static void main(String[] args) {
-        HDBManager mgr = new HDBManager("S1234567A", "password", 40, "Married", new ArrayList<>());
-
-        Project p = new Project("P001","Sunrise","Boon Lay","2-Room",
-                                100,50, LocalDate.now().minusDays(1),
-                                LocalDate.now().plusDays(30), mgr, 5);
-        mgr.createProject(p);
-        System.out.println("Created: " + p.getProjectName());
-
-        p.setProjectName("Sunrise Updated");
-        mgr.updateProject(p, p);
-        System.out.println("Updated to: " + p.getProjectName());
-
-        mgr.toggleProjectVisibility(p, false);
-        System.out.println("Visible? " + p.isVisible());
     }
 }
