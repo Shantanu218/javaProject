@@ -1,65 +1,40 @@
 import enums.FlatType;
+import enums.ApplicationStatus;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * HDBManager is responsible for managing BTO project listings and handling HDB Officer registration requests.
- * <p>
- * This implementation covers methods for project management (create, update, delete, toggle visibility, view projects)
- * and for processing officer registrations (view, approve, reject registrations).
- * The methods related to application approval, withdrawal, report generation, and enquiry replies are declared as placeholders.
+ * HDBManager is responsible for managing BTO project listings,
+ * processing officer registrations, handling applications and withdrawals,
+ * generating booking reports, and replying to enquiries.
  */
 public class HDBManager extends User {
+    private static final List<Project> allProjects = new ArrayList<>();
+    private static final List<OfficerRegistration> allOfficerRegistrations = new ArrayList<>();
 
-    // Global lists simulating the system-wide storage of projects and officer registrations.
-    private static List<Project> allProjects = new ArrayList<>();
-    private static List<OfficerRegistration> allOfficerRegistrations = new ArrayList<>();
-
-    /**
-     * Constructs an HDBManager.
-     *
-     * @param nric          the NRIC of the manager
-     * @param password      the manager's password
-     * @param age           the manager's age
-     * @param maritalStatus the manager's marital status
-     * @param enquiries     the list of enquiries (if null, will be set to an empty list)
-     */
     public HDBManager(String nric, String password, int age, String maritalStatus, List<Enquiry> enquiries) {
         super(nric, password, age, maritalStatus, enquiries);
     }
 
-    /* =====================================================
-       PROJECT MANAGEMENT METHODS
-       ===================================================== */
+    /* =====================
+       PROJECT MANAGEMENT
+       ===================== */
 
-    /**
-     * Creates a new project (BTO project listing) and adds it to the system.
-     * The project is tagged with this manager as its creator.
-     *
-     * @param project the new Project to create
-     * @return the updated list of all projects
-     */
     public List<Project> createProject(Project project) {
-        project.setCreatedBy(this); // Uses the Project method: setCreatedBy(HDBManager)
+        project.setCreatedBy(this);
         allProjects.add(project);
         return allProjects;
     }
 
-    /**
-     * Updates an existing project with new details.
-     * Only projects created by this manager can be updated.
-     *
-     * @param oldProject     the existing project to update
-     * @param updatedProject a Project object containing the updated details
-     */
     public void updateProject(Project oldProject, Project updatedProject) {
         if (!allProjects.contains(oldProject)) {
             System.out.println("Update failed: Project not found.");
             return;
         }
-        if (oldProject.getManagerInCharge() != this) { // Instead of getCreatedBy()
-            System.out.println("Update failed: You did not create this project.");
+        if (oldProject.getManagerInCharge() != this) {
+            System.out.println("Update failed: Not your project.");
             return;
         }
         oldProject.setProjectName(updatedProject.getProjectName());
@@ -70,96 +45,60 @@ public class HDBManager extends User {
         oldProject.setApplicationClosingDate(updatedProject.getApplicationClosingDate());
     }
 
-    /**
-     * Deletes a project from the system.
-     * Only projects created by this manager can be deleted.
-     *
-     * @param project the project to delete
-     * @return true if deletion was successful, false otherwise
-     */
     public boolean deleteProject(Project project) {
         if (!allProjects.contains(project)) {
             System.out.println("Delete failed: Project not found.");
             return false;
         }
         if (project.getManagerInCharge() != this) {
-            System.out.println("Delete failed: You did not create this project.");
+            System.out.println("Delete failed: Not your project.");
             return false;
         }
         allProjects.remove(project);
         return true;
     }
 
-    /**
-     * Toggles the visibility of a project.
-     *
-     * @param project    the project whose visibility is to be toggled
-     * @param visibility true for visible, false for hidden
-     * @return true if toggled successfully, false otherwise
-     */
     public boolean toggleProjectVisibility(Project project, boolean visibility) {
         if (!allProjects.contains(project)) {
             System.out.println("Toggle failed: Project not found.");
             return false;
         }
         if (project.getManagerInCharge() != this) {
-            System.out.println("Toggle failed: You did not create this project.");
+            System.out.println("Toggle failed: Not your project.");
             return false;
         }
-        project.setVisibility(visibility);  // Use setVisibility(boolean) method
+        project.setVisibility(visibility);
         return true;
     }
 
-    /**
-     * Retrieves a list of all projects in the system.
-     *
-     * @return a list of all projects
-     */
     public List<Project> viewAllProjects() {
         return new ArrayList<>(allProjects);
     }
 
-    /**
-     * Retrieves a list of projects created by this manager.
-     *
-     * @return a list of projects this manager created
-     */
     public List<Project> viewCreatedProjects() {
-        List<Project> createdProjects = new ArrayList<>();
+        List<Project> mine = new ArrayList<>();
         for (Project p : allProjects) {
             if (p.getManagerInCharge() == this) {
-                createdProjects.add(p);
+                mine.add(p);
             }
         }
-        return createdProjects;
+        return mine;
     }
 
-    /* =============================================================
-       OFFICER REGISTRATION MANAGEMENT METHODS
-       ============================================================= */
+    /* ===================================
+       OFFICER REGISTRATION MANAGEMENT
+       =================================== */
 
-    /**
-     * Retrieves all officer registrations for a given project.
-     *
-     * @param project the project to check for registrations
-     * @return a list of OfficerRegistration objects associated with that project
-     */
     public List<OfficerRegistration> viewOfficerRegistrations(Project project) {
-        List<OfficerRegistration> registrations = new ArrayList<>();
-        for (OfficerRegistration reg : allOfficerRegistrations) {
-            if (reg.getProject() == project) {
-                registrations.add(reg);
+        List<OfficerRegistration> regs = new ArrayList<>();
+        for (OfficerRegistration r : allOfficerRegistrations) {
+            if (r.getProject() == project) {
+                regs.add(r);
             }
         }
-        return registrations;
+        return regs;
     }
 
-    /**
-     * Approves an officer registration for a project.
-     * The registration must belong to a project created by this manager.
-     *
-     * @param registration the officer registration to approve
-     */
     public void approveOfficerRegistration(OfficerRegistration registration) {
         if (!allOfficerRegistrations.contains(registration)) {
             System.out.println("Approval failed: Registration not found.");
@@ -170,15 +109,8 @@ public class HDBManager extends User {
             return;
         }
         registration.setStatus("Approved");
-        // Optionally: Decrease available officer slots in the project.
     }
 
-    /**
-     * Rejects an officer registration for a project.
-     * The registration must belong to a project created by this manager.
-     *
-     * @param registration the officer registration to reject
-     */
     public void rejectOfficerRegistration(OfficerRegistration registration) {
         if (!allOfficerRegistrations.contains(registration)) {
             System.out.println("Rejection failed: Registration not found.");
@@ -191,220 +123,126 @@ public class HDBManager extends User {
         registration.setStatus("Rejected");
     }
 
-    /* ======================================================
-       APPLICATION / WITHDRAWAL / REPORT / ENQUIRY METHODS
-       ====================================================== */
+    /* ============================
+       APPLICATION MANAGEMENT
+       ============================ */
 
-    /* =====================================================
-        Approve a Pending Application
-    ===================================================== */
-
-
-    public boolean approveApplication(Application application)
-    {
-        if(application == null)
-        {
+    public boolean approveApplication(Application application) {
+        if (application == null || application.getStatus() != ApplicationStatus.Pending) {
             return false;
         }
-        String status = application.getStatus();
-        FlatType requestedFlat = application.getFlatType();
+        FlatType type = application.getFlatTypeChosen();
         Project project = application.getProject();
-
-        if (requestedFlat == FlatType.Two_Room && project.getTwoRoomUnits() > 0)
-        {
+        if (type == FlatType.Two_Room && project.getTwoRoomUnits() > 0) {
             project.setTwoRoomUnits(project.getTwoRoomUnits() - 1);
-            application.setStatus("Successful");
-            return true;
-        }
-        else if (requestedFlat == FlatType.Three_Room && project.getThreeRoomUnits() > 0)
-        {
+        } else if (type == FlatType.Three_Room && project.getThreeRoomUnits() > 0) {
             project.setThreeRoomUnits(project.getThreeRoomUnits() - 1);
-            application.setStatus("Successful");
-            return true;
-        }
-
-        return false;
-    }
-
-    /* ===================================================== 
-                Reject a Pending Application
-    ===================================================== */
-
-    public boolean rejectApplication(Application application)
-    {
-        if (application == null)
-        {
+        } else {
+            application.setStatus(ApplicationStatus.Unsuccessful);
             return false;
         }
-        if(!application.getStatus().equalsIgnoreCase("Pending"))
-        {
-            return false;
-        }
-        application.setStatus("Unsuccessful");
+        application.setStatus(ApplicationStatus.Successful);
         return true;
     }
 
-    /* ===================================================== 
-                Approve a Withdrawal Request
-    ===================================================== */
-
-    public boolean approveWithdrawal(Application application)
-    {
-        if (application == null)
-        {
+    public boolean rejectApplication(Application application) {
+        if (application == null || application.getStatus() != ApplicationStatus.Pending) {
             return false;
         }
-        String status = application.getStatus();
-        FlatType requestedFlat = application.getFlatType();
+        application.setStatus(ApplicationStatus.Unsuccessful);
+        return true;
+    }
+
+    /* ============================
+       WITHDRAWAL MANAGEMENT
+       ============================ */
+
+    public boolean approveWithdrawal(Application application) {
+        if (application == null) return false;
+        ApplicationStatus s = application.getStatus();
         Project project = application.getProject();
+        FlatType type = application.getFlatTypeChosen();
 
-        if(status.equalsIgnoreCase("Pending") || status.equalsIgnoreCase("Booked"))
-        {
-            application.setStatus("Withdrawn");
-
-            if(status.equalsIgnoreCase("Booked"))
-            {
-                if(requestedFlat == FlatType.Two_Room)
-                {
+        if (s == ApplicationStatus.Pending || s == ApplicationStatus.Booked) {
+            if (s == ApplicationStatus.Booked) {
+                if (type == FlatType.Two_Room) {
                     project.setTwoRoomUnits(project.getTwoRoomUnits() + 1);
-                }
-                else if(requestedFlat == FlatType.Three_Room)
-                {
+                } else {
                     project.setThreeRoomUnits(project.getThreeRoomUnits() + 1);
                 }
             }
+            application.setStatus(ApplicationStatus.Withdrawn);
             return true;
         }
         return false;
     }
 
-    /* ===================================================== 
-                Reject a Withdrawal Request
-    ===================================================== */
-
-    public boolean rejectWithdrawal(Application application)
-    {
-        if(application == null)
-        {
+    public boolean rejectWithdrawal(Application application) {
+        if (application == null || application.getStatus() != ApplicationStatus.WithdrawalRequested) {
             return false;
         }
-        if(application.getStatus().equalsIgnoreCase("Withdrawal Requested"))
-        {
-            application.setStatus("Booked");
-            return true;
-        }
-        return false;
-
+        application.setStatus(ApplicationStatus.Booked);
+        return true;
     }
 
-    /* ===================================================== 
-                Generate Flat Booking Report
-    ===================================================== */
+    /* ============================
+       REPORT GENERATION
+       ============================ */
 
-    public String generateFlatBookingReport(List <Application> applications)
-    {
+    public String generateFlatBookingReport(List<Application> applications) {
         StringBuilder report = new StringBuilder();
-
-        for(Application app : applications)
-        {
-            if (app.getStatus().equalsIgnoreCase("Booked"))
-            {
+        for (Application app : applications) {
+            if (app.getStatus() == ApplicationStatus.Booked) {
                 report.append("Applicant: ").append(app.getApplicant().getNric())
-                .append(", Age: ").append(app.getApplicant().getAge())
-                .append(", Marital Status: ").append(app.getApplicant().getMaritalStatus())
-                .append(", Flat Type: ").append(app.getFlatType())
-                .append(", Project: ").append(app.getProject().getProjectName())
-                .append(" (").append(app.getProject().getNeighborhood()).append(")")
-                .append("\n");
+                      .append(", Age: ").append(app.getApplicant().getAge())
+                      .append(", Marital: ").append(app.getApplicant().getMaritalStatus())
+                      .append(", Flat: ").append(app.getFlatTypeChosen())
+                      .append(", Project: ").append(app.getProject().getProjectName())
+                      .append(" (").append(app.getProject().getNeighborhood()).append(")\n");
             }
         }
         return report.toString();
     }
 
-    /* ===================================================== 
-                View All Enquiries
-    ===================================================== */
+    /* ============================
+       ENQUIRY MANAGEMENT
+       ============================ */
 
-    public List<Enquiry> viewAllEnquiries()
-    {
-        return EnquiryRepository.getAllEnquiries();
+    public List<Enquiry> viewAllEnquiries() {
+        List<Enquiry> all = new ArrayList<>();
+        for (Project p : allProjects) {
+            all.addAll(p.getEnquiries());
+        }
+        return all;
     }
 
-    /* ===================================================== 
-                Reply to Enquiry
-    ===================================================== */
-
-    public boolean replyToEnquiry(Enquiry enquiry, String replyText)
-    {
-        if (enquiry == null || replyText == null || replyText.trim().isEmpty())
-        {
+    public boolean replyToEnquiry(Enquiry enquiry, String replyText) {
+        if (enquiry == null || replyText == null || replyText.trim().isEmpty()) {
             return false;
         }
-        enquiry.setReply(replyText);
-        enquiry.setStatus("Replied");
+        enquiry.addReply(enquiry.getEnquiryID(), replyText);
+        enquiry.setRepliedBy(this);
         return true;
     }
 
-    /* =======================================================
-       DEMO MAIN METHOD (Optional) -- For testing purposes
-       ======================================================= */
-       public static void main(String[] args) {
-        // Create an HDBManager instance.
-        HDBManager manager = new HDBManager("S1234567A", "password", 40, "Married", new ArrayList<>());
+    /* ===================================
+       OPTIONAL DEMO MAIN METHOD
+       =================================== */
 
-        // Create a sample project using the correct constructor parameters.
-        Project project = new Project(
-                "P001", 
-                "Sunrise Ville", 
-                "Boon Lay", 
-                "2-Room", 
-                100, 
-                50, 
-                LocalDate.now().minusDays(1), 
-                LocalDate.now().plusDays(30), 
-                manager, 
-                10
-        );
-        manager.createProject(project);
-        System.out.println("Project Created: " + project.getProjectName());
+    public static void main(String[] args) {
+        HDBManager mgr = new HDBManager("S1234567A", "password", 40, "Married", new ArrayList<>());
 
-        // Update the project details.
-        Project updatedProject = new Project(
-                "P001", 
-                "Sunrise Ville Updated", 
-                "Jurong East", 
-                "2-Room", 
-                90, 
-                45, 
-                LocalDate.now().minusDays(1), 
-                LocalDate.now().plusDays(30), 
-                manager, 
-                10
-        );
-        manager.updateProject(project, updatedProject);
-        System.out.println("Updated Project: " + project.getProjectName() + ", Neighborhood: " + project.getNeighborhood());
+        Project p = new Project("P001","Sunrise","Boon Lay","2-Room",
+                                100,50, LocalDate.now().minusDays(1),
+                                LocalDate.now().plusDays(30), mgr, 5);
+        mgr.createProject(p);
+        System.out.println("Created: " + p.getProjectName());
 
-        // Toggle project visibility.
-        manager.toggleProjectVisibility(project, false);
-        System.out.println("Project visibility (should be false): " + project.isVisible());
+        p.setProjectName("Sunrise Updated");
+        mgr.updateProject(p, p);
+        System.out.println("Updated to: " + p.getProjectName());
 
-        // Simulate officer registrations using a dummy officer.
-        User dummyOfficer = new User("T2345678B", "password", 35, "Single", new ArrayList<>()) {};
-        OfficerRegistration reg1 = new OfficerRegistration(project, dummyOfficer);
-        allOfficerRegistrations.add(reg1);
-        manager.approveOfficerRegistration(reg1);
-        System.out.println("Officer Registration Status after Approval: " + reg1.getStatus());
-
-        OfficerRegistration reg2 = new OfficerRegistration(project, dummyOfficer);
-        allOfficerRegistrations.add(reg2);
-        manager.rejectOfficerRegistration(reg2);
-        System.out.println("Officer Registration Status after Rejection: " + reg2.getStatus());
-
-        // Create a dummy applicant for testing the Application.
-        Applicant dummyApplicant = new Applicant("S7654321B", "password", 30, "Single", new ArrayList<>());
-        // Use the enum value for flat type, e.g., FlatType.Two_Room (assume this enum value exists).
-        Application dummyApp = new Application("A001", dummyApplicant, project, FlatType.Two_Room);
-        // Call the stub method (teammate's part) to process the application.
-        manager.approveApplication(dummyApp);
+        mgr.toggleProjectVisibility(p, false);
+        System.out.println("Visible? " + p.isVisible());
     }
 }
