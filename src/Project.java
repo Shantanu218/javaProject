@@ -3,136 +3,104 @@ import enums.FlatType;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents a Build-To-Order (BTO) project listing.
- * Contains information about the project details, application period, 
- * available flat units, the manager in charge, available officer slots,
- * enquiries, applications, and officer registrations.
  */
 public class Project {
-    private final String projectID; // Unique identifier, immutable
+    private final String projectID;
     private String projectName;
     private String neighborhood;
-    private String flatType;
     private int twoRoomUnits;
     private int threeRoomUnits;
     private LocalDate applicationOpeningDate;
     private LocalDate applicationClosingDate;
-    private boolean visibility;
+    private boolean visible;
     private HDBManager managerInCharge;
-    private int availableOfficerSlot;
-    private List<Enquiry> enquiries;
-    private List<Application> applications;
-    private List<OfficerRegistration> officerRegistrations;
+    private int availableOfficerSlots;
 
-    /**
-     * Constructs a new Project with the given details.
-     *
-     * @param projectID             the unique identifier for the project
-     * @param projectName           the project's name
-     * @param neighborhood          the neighborhood for the project
-     * @param flatType              the type of flat (e.g., "2-Room" or "3-Room")
-     * @param twoRoomUnits          the number of 2-Room units available
-     * @param threeRoomUnits        the number of 3-Room units available
-     * @param openingDate           the application opening date
-     * @param closingDate           the application closing date
-     * @param managerInCharge       the HDBManager responsible for this project
-     * @param availableOfficerSlot  the number of HDB officer slots available
-     */
-    public Project(String projectID, String projectName, String neighborhood, String flatType,
-                   int twoRoomUnits, int threeRoomUnits, LocalDate openingDate, LocalDate closingDate,
-                   HDBManager managerInCharge, int availableOfficerSlot) {
-        this.projectID = projectID;
-        this.projectName = projectName;
-        this.neighborhood = neighborhood;
-        this.flatType = flatType;
-        this.twoRoomUnits = twoRoomUnits;
-        this.threeRoomUnits = threeRoomUnits;
-        this.applicationOpeningDate = openingDate;
-        this.applicationClosingDate = closingDate;
-        this.managerInCharge = managerInCharge;
-        this.availableOfficerSlot = availableOfficerSlot;
-        this.visibility = true; // Default visibility is on.
-        this.enquiries = new ArrayList<>();
-        this.applications = new ArrayList<>();
-        this.officerRegistrations = new ArrayList<>();
+    private final List<Enquiry> enquiries = new ArrayList<>();
+    private final List<Application> applications = new ArrayList<>();
+    private final List<OfficerRegistration> officerRegistrations = new ArrayList<>();
+
+    public Project(String projectID,
+                   String projectName,
+                   String neighborhood,
+                   int twoRoomUnits,
+                   int threeRoomUnits,
+                   LocalDate openingDate,
+                   LocalDate closingDate,
+                   HDBManager managerInCharge,
+                   int availableOfficerSlots) {
+        this.projectID             = Objects.requireNonNull(projectID);
+        this.projectName           = Objects.requireNonNull(projectName);
+        this.neighborhood          = Objects.requireNonNull(neighborhood);
+        this.twoRoomUnits          = twoRoomUnits;
+        this.threeRoomUnits        = threeRoomUnits;
+        this.applicationOpeningDate= Objects.requireNonNull(openingDate);
+        this.applicationClosingDate= Objects.requireNonNull(closingDate);
+        this.visible               = true;
+        this.managerInCharge       = Objects.requireNonNull(managerInCharge);
+        this.availableOfficerSlots = availableOfficerSlots;
     }
 
-    /**
-     * Checks if the project is currently visible.
-     *
-     * @return true if visible; false otherwise.
-     */
+    /** Toggle whether applicants see this project. */
+    public void toggleVisibility() {
+        this.visible = !this.visible;
+    }
+
     public boolean isVisible() {
-        return visibility;
+        return visible;
     }
 
-    /**
-     * Sets the project's visibility.
-     *
-     * @param visibility true to make visible; false to hide.
-     */
-    public void setVisibility(boolean visibility) {
-        this.visibility = visibility;
-    }
-
-    /**
-     * Determines whether the current date is within the application period.
-     *
-     * @return true if within period; false otherwise.
-     */
+    /** Within the start–end application window? */
     public boolean isWithinApplicationPeriod() {
         LocalDate now = LocalDate.now();
-        return (now.isEqual(applicationOpeningDate) || now.isAfter(applicationOpeningDate)) &&
-                (now.isEqual(applicationClosingDate) || now.isBefore(applicationClosingDate));
+        return (now.isEqual(applicationOpeningDate) || now.isAfter(applicationOpeningDate))
+            && (now.isEqual(applicationClosingDate) || now.isBefore(applicationClosingDate));
     }
 
-    /**
-     * Adds an enquiry to the project.
-     *
-     * @param enquiry the enquiry to add.
-     */
+    /** Add a new enquiry. */
     public void addEnquiry(Enquiry enquiry) {
         enquiries.add(enquiry);
     }
 
-    /**
-     * Adds an application to the project.
-     *
-     * @param application the application to add.
-     */
+    /** Add a new application. */
     public void addApplication(Application application) {
         applications.add(application);
     }
 
-    /**
-     * Adds an officer registration to the project.
-     *
-     * @param registration the officer registration to add.
-     */
-    public void addOfficerRegistration(OfficerRegistration registration) {
-        officerRegistrations.add(registration);
+    /** Add a new officer registration. */
+    public void addOfficerRegistration(OfficerRegistration reg) {
+        officerRegistrations.add(reg);
     }
 
-    /**
-     * Updates the remaining flat units for a given flat type.
-     *
-     * @param flatType the flat type to update.
-     * @param delta    the change in unit count (positive or negative).
-     */
-    public void updateRemainingUnits(FlatType flatType, int delta) {
+    /** Called when an application is approved/booked to decrement stock. */
+    public void decrementUnits(FlatType flatType) {
         switch (flatType) {
-            case Two_Room:
-                twoRoomUnits = Math.max(0, twoRoomUnits + delta);
-                break;
-            case Three_Room:
-                threeRoomUnits = Math.max(0, threeRoomUnits + delta);
-                break;
+            case Two_Room  -> twoRoomUnits = Math.max(0, twoRoomUnits - 1);
+            case Three_Room-> threeRoomUnits = Math.max(0, threeRoomUnits - 1);
         }
     }
 
-    // Getters and setters for updatable fields:
+    /** Called when a booked application is withdrawn to return a unit. */
+    public void incrementUnits(FlatType flatType) {
+        switch (flatType) {
+            case Two_Room  -> twoRoomUnits++;
+            case Three_Room-> threeRoomUnits++;
+        }
+    }
+
+    /** Occupy one officer slot (after manager approval). */
+    public void occupyOfficerSlot() {
+        if (availableOfficerSlots <= 0) {
+            throw new IllegalStateException("No HDB officer slots remaining");
+        }
+        availableOfficerSlots--;
+    }
+
+    // ─── Getters & setters ──────────────────────────────────────────────────
 
     public String getProjectID() {
         return projectID;
@@ -143,7 +111,7 @@ public class Project {
     }
 
     public void setProjectName(String projectName) {
-        this.projectName = projectName;
+        this.projectName = Objects.requireNonNull(projectName);
     }
 
     public String getNeighborhood() {
@@ -151,15 +119,7 @@ public class Project {
     }
 
     public void setNeighborhood(String neighborhood) {
-        this.neighborhood = neighborhood;
-    }
-
-    public String getFlatType() {
-        return flatType;
-    }
-
-    public void setFlatType(String flatType) {
-        this.flatType = flatType;
+        this.neighborhood = Objects.requireNonNull(neighborhood);
     }
 
     public int getTwoRoomUnits() {
@@ -183,7 +143,7 @@ public class Project {
     }
 
     public void setApplicationOpeningDate(LocalDate applicationOpeningDate) {
-        this.applicationOpeningDate = applicationOpeningDate;
+        this.applicationOpeningDate = Objects.requireNonNull(applicationOpeningDate);
     }
 
     public LocalDate getApplicationClosingDate() {
@@ -191,48 +151,43 @@ public class Project {
     }
 
     public void setApplicationClosingDate(LocalDate applicationClosingDate) {
-        this.applicationClosingDate = applicationClosingDate;
+        this.applicationClosingDate = Objects.requireNonNull(applicationClosingDate);
     }
 
     public HDBManager getManagerInCharge() {
         return managerInCharge;
     }
 
-    /**
-     * Sets the manager in charge (i.e., the creator) of this project.
-     *
-     * @param manager the HDBManager to set as creator.
-     */
-    public void setCreatedBy(HDBManager manager) {
-        this.managerInCharge = manager;
+    public void setManagerInCharge(HDBManager manager) {
+        this.managerInCharge = Objects.requireNonNull(manager);
     }
 
-    public int getAvailableOfficerSlot() {
-        return availableOfficerSlot;
+    public int getAvailableOfficerSlots() {
+        return availableOfficerSlots;
     }
 
-    public void setAvailableOfficerSlot(int availableOfficerSlot) {
-        this.availableOfficerSlot = availableOfficerSlot;
+    public void setAvailableOfficerSlots(int availableOfficerSlots) {
+        this.availableOfficerSlots = availableOfficerSlots;
     }
 
     public List<Enquiry> getEnquiries() {
-        return enquiries;
+        return List.copyOf(enquiries);
     }
 
     public List<Application> getApplications() {
-        return applications;
+        return List.copyOf(applications);
     }
 
     public List<OfficerRegistration> getOfficerRegistrations() {
-        return officerRegistrations;
+        return List.copyOf(officerRegistrations);
     }
 
-    /**
-     * Decreases the available officer slot count by one, if possible.
-     */
-    public void decreaseOfficerSlot() {
-        if (availableOfficerSlot > 0) {
-            availableOfficerSlot--;
-        }
+    @Override
+    public String toString() {
+        return String.format(
+            "%s: %s [%s] 2-Room:%d 3-Room:%d Visible:%b Slots:%d",
+            projectID, projectName, neighborhood,
+            twoRoomUnits, threeRoomUnits, visible, availableOfficerSlots
+        );
     }
 }

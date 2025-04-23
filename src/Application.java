@@ -1,102 +1,132 @@
 import enums.ApplicationStatus;
 import enums.FlatType;
-import enums.RegistrationStatus;
 
 import java.time.LocalDate;
+import java.util.Objects;
+import java.util.UUID;
 
+/**
+ * Represents an Applicant’s BTO application.
+ */
 public class Application {
-    private String applicationID;
-    private Applicant applicant;
-    private Project project;
-    private LocalDate applicationDate;
+    private final String applicationID;
+    private final Applicant applicant;
+    private final Project project;
+    private final LocalDate applicationDate;
+
     private ApplicationStatus status;
-    private FlatType flatTypeChosen;
-    private boolean withdrawalRequest;
+    private final FlatType flatTypeChosen;
+    private boolean withdrawalRequested;
 
-
-    public Application(String applicationId, Applicant applicant, Project project, FlatType flatType) {
-        this.applicationID = applicationId;
-        this.applicant = applicant;
-        this.project = project;
-        this.flatTypeChosen = flatType;
-        this.applicationDate = LocalDate.now(); // sets to current date
-        this.status = ApplicationStatus.Pending; // default status on creation
-        this.withdrawalRequest = false; // default to no withdrawal request
+    public Application(String applicationID,
+                       Applicant applicant,
+                       Project project,
+                       FlatType flatTypeChosen) {
+        this.applicationID      = Objects.requireNonNull(applicationID);
+        this.applicant          = Objects.requireNonNull(applicant);
+        this.project            = Objects.requireNonNull(project);
+        this.flatTypeChosen     = Objects.requireNonNull(flatTypeChosen);
+        this.applicationDate    = LocalDate.now();
+        this.status             = ApplicationStatus.PENDING;
+        this.withdrawalRequested = false;
     }
 
-    public void updateStatus(ApplicationStatus stats) {
-        status = stats;
+    // ─── Domain actions ────────────────────────────────────────────────────────
+
+    /** Approve this application if units available; else UNSUCCESSFUL. */
+    public void approve() {
+        if (status != ApplicationStatus.PENDING) {
+            throw new IllegalStateException("Can only approve a PENDING application");
+        }
+        boolean success = false;
+        switch (flatTypeChosen) {
+            case Two_Room:
+                if (project.getTwoRoomUnits() > 0) {
+                    project.decrementUnits(flatTypeChosen);
+                    success = true;
+                }
+                break;
+            case Three_Room:
+                if (project.getThreeRoomUnits() > 0) {
+                    project.decrementUnits(flatTypeChosen);
+                    success = true;
+                }
+                break;
+        }
+        status = success
+               ? ApplicationStatus.SUCCESSFUL
+               : ApplicationStatus.UNSUCCESSFUL;
     }
 
+    /** Reject this application (mark UNSUCCESSFUL). */
+    public void reject() {
+        if (status != ApplicationStatus.PENDING) {
+            throw new IllegalStateException("Can only reject a PENDING application");
+        }
+        status = ApplicationStatus.UNSUCCESSFUL;
+    }
+
+    /** Book the flat (after a SUCCESSFUL approval). */
+    public void book() {
+        if (status != ApplicationStatus.SUCCESSFUL) {
+            throw new IllegalStateException("Can only book a SUCCESSFUL application");
+        }
+        status = ApplicationStatus.BOOKED;
+    }
+
+    /** Withdraw the application (after request). Rolls back inventory if already booked. */
+    public void withdraw() {
+        if (!withdrawalRequested) {
+            throw new IllegalStateException("Withdrawal must be requested first");
+        }
+        // rollback units if previously BOOKED
+        if (status == ApplicationStatus.BOOKED) {
+            project.incrementUnits(flatTypeChosen);
+        }
+        status = ApplicationStatus.WITHDRAWN;
+    }
+
+    // ─── Withdrawal request ───────────────────────────────────────────────────
+
+    /**
+     * Applicant flags their intent to withdraw.
+     * @return true if this is the first request; false if already requested.
+     */
     public boolean requestWithdrawal() {
-        // implementation
-        return false;
+        if (withdrawalRequested || status == ApplicationStatus.WITHDRAWN) {
+            return false;
+        }
+        withdrawalRequested = true;
+        return true;
     }
 
     public boolean isWithdrawalRequested() {
-        // implementation
-        return false;
+        return withdrawalRequested;
     }
+
+    // ─── Read‐only view ────────────────────────────────────────────────────────
 
     public String getApplicationDetails() {
-        // implementation
-        return null;
+        return String.format(
+            "AppID: %s | Project: %s | Flat: %s | Status: %s",
+            applicationID,
+            project.getProjectName(),
+            flatTypeChosen,
+            status
+        );
     }
 
-    // getter and setter methods
-    public String getApplicationID() {
-        return applicationID;
-    }
+    // ─── Getters ───────────────────────────────────────────────────────────────
 
-    public void setApplicationID(String applicationID) {
-        this.applicationID = applicationID;
-    }
+    public String getApplicationID()       { return applicationID; }
+    public Applicant getApplicant()        { return applicant; }
+    public Project getProject()            { return project; }
+    public LocalDate getApplicationDate()  { return applicationDate; }
+    public ApplicationStatus getStatus()   { return status; }
+    public FlatType getFlatTypeChosen()    { return flatTypeChosen; }
 
-    public Applicant getApplicant() {
-        return applicant;
-    }
-
-    public void setApplicant(Applicant applicant) {
-        this.applicant = applicant;
-    }
-
-    public Project getProject() {
-        return project;
-    }
-
-    public void setProject(Project project) {
-        this.project = project;
-    }
-
-    public LocalDate getApplicationDate() {
-        return applicationDate;
-    }
-
-    public void setApplicationDate(LocalDate applicationDate) {
-        this.applicationDate = applicationDate;
-    }
-
-    public ApplicationStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ApplicationStatus status) {
-        this.status = status;
-    }
-
-    public FlatType getFlatTypeChosen() {
-        return flatTypeChosen;
-    }
-
-    public void setFlatTypeChosen(FlatType flatTypeChosen) {
-        this.flatTypeChosen = flatTypeChosen;
-    }
-
-    public boolean isWithdrawalRequest() {
-        return withdrawalRequest;
-    }
-
-    public void setWithdrawalRequest(boolean withdrawalRequest) {
-        this.withdrawalRequest = withdrawalRequest;
+    @Override
+    public String toString() {
+        return getApplicationDetails();
     }
 }

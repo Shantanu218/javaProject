@@ -1,74 +1,81 @@
-import java.util.List;
-import enums.ApplicationStatus;
 import enums.FlatType;
+import enums.MaritalStatus;
 
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Represents an Applicant in the BTO system.
+ * Pure domain logic—no I/O here.
+ */
 public class Applicant extends User {
-    private Project appliedProject;
-    private String applicationStatus;
-    private FlatType bookedFlatType;
+    private Application application;  // at most one active application
 
-    public Applicant(String nric, String password, int age, String maritalStatus, List<Enquiry> enquiries) {
-        super(nric, password, age, maritalStatus, enquiries);
+    public Applicant(String nric,
+                     String password,
+                     int age,
+                     MaritalStatus maritalStatus) {
+        super(nric, password, age, maritalStatus);
     }
 
-    // Getters and Setters
-    public Project getAppliedProject() {
-        return appliedProject;
+    /** @return the current application, or null if none. */
+    public Application getApplication() {
+        return application;
     }
 
-    public void setAppliedProject(Project appliedProject) {
-        this.appliedProject = appliedProject;
+    /**
+     * Checks eligibility per the spec:
+     *  - Project must be visible and within application period.
+     *  - SINGLE ≥ 35 may only apply for Two_Room.
+     *  - MARRIED ≥ 21 may apply for Two_Room or Three_Room.
+     */
+    public boolean isEligible(Project project, FlatType flatType) {
+        if (!project.isVisible() || !project.isWithinApplicationPeriod()) {
+            return false;
+        }
+        if (getMaritalStatus() == MaritalStatus.SINGLE) {
+            return getAge() >= 35 && flatType == FlatType.Two_Room;
+        } else { // MARRIED
+            return getAge() >= 21
+                && (flatType == FlatType.Two_Room
+                 || flatType == FlatType.Three_Room);
+        }
     }
 
-    public String getApplicationStatus() {
-        return applicationStatus;
+    /**
+     * Applies for the given project with the chosen flat type.
+     * @throws IllegalStateException if already applied or not eligible.
+     */
+    public Application apply(Project project, FlatType flatType) {
+        if (application != null) {
+            throw new IllegalStateException("Already applied for a project");
+        }
+        if (!isEligible(project, flatType)) {
+            throw new IllegalStateException("Not eligible for this project/flat type");
+        }
+        String appId = "APP-" + UUID.randomUUID();
+        Application app = new Application(appId, this, project, flatType);
+        project.addApplication(app);
+        this.application = app;
+        return app;
     }
 
-    public void setApplicationStatus(String applicationStatus) {
-        this.applicationStatus = applicationStatus;
-    }
-
-    public FlatType getBookedFlatType() {
-        return bookedFlatType;
-    }
-
-    public void setBookedFlatType(FlatType bookedFlatType) {
-        this.bookedFlatType = bookedFlatType;
-    }
-
-    // Implementation Methods
-    public List<Project> viewOpenProjects() {
-        // implementation
-        return null;
-    }
-
-    public boolean applyForProject(Project project) {
-        // implementation
-        return false;
-    }
-
-    public ApplicationStatus viewApplicationStatus() {
-        // implementation
-        return null;
-    }
-
+    /**
+     * Requests withdrawal of the current application.
+     * @return true if the request was registered; false otherwise.
+     */
     public boolean requestWithdrawal() {
-        // implementation
-        return false;
+        if (application == null) {
+            return false;
+        }
+        return application.requestWithdrawal();
     }
 
-    public Enquiry submitEnquiry(Project project, String enquiryText) {
-        // implementation
-        return null;
-    }
-
-    public boolean editEnquiry(int enquiryID, String newText) {
-        // implementation
-        return false;
-    }
-
-    public boolean deleteEnquiry(int enquiryID) {
-        // implementation
-        return false;
+    /**
+     * Expose enquiries inherited from User.
+     */
+    @Override
+    public List<Enquiry> getEnquiries() {
+        return super.getEnquiries();
     }
 }

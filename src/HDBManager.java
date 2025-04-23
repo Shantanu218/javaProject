@@ -1,217 +1,192 @@
-import enums.FlatType;
 import enums.ApplicationStatus;
+import enums.FlatType;
+import enums.RegistrationStatus;
+import enums.MaritalStatus;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * HDBManager is responsible for managing BTO projects, officer registrations,
- * application approvals/withdrawals, report generation, and enquiry replies.
+ * Represents an HDB Manager who can:
+ *  - create/update/delete projects (one per period)
+ *  - toggle project visibility
+ *  - view all or their own projects
+ *  - approve/reject officer registrations (respecting slot limits)
+ *  - approve/reject BTO applications
+ *  - process withdrawal requests
+ *  - generate a flat‐booking report
  */
 public class HDBManager extends User {
-    private static final List<Project> allProjects = new ArrayList<>();
-    private static final List<OfficerRegistration> allOfficerRegistrations = new ArrayList<>();
+    private final List<Project> projectRepo;
+    private final List<OfficerRegistration> officerRegRepo;
 
-    public HDBManager(String nric, String password, int age, String maritalStatus, List<Enquiry> enquiries) {
-        super(nric, password, age, maritalStatus, enquiries);
+    /**
+     * Full constructor (used by Main wiring).
+     */
+    public HDBManager(
+        String nric,
+        String password,
+        int age,
+        MaritalStatus maritalStatus,
+        List<Project> projectRepo,
+        List<OfficerRegistration> officerRegRepo
+    ) {
+        super(nric, password, age, maritalStatus);
+        this.projectRepo    = projectRepo;
+        this.officerRegRepo = officerRegRepo;
     }
 
-    /* =====================
-       PROJECT MANAGEMENT
-       ===================== */
-
-    public List<Project> createProject(Project project) {
-        project.setCreatedBy(this);
-        allProjects.add(project);
-        return allProjects;
+    /**
+     * Convenience constructor for data‐loading (no repos yet).
+     */
+    public HDBManager(String nric, String password, int age, MaritalStatus maritalStatus) {
+        this(nric, password, age, maritalStatus,
+             new ArrayList<>(),
+             new ArrayList<>()
+        );
     }
 
-    public void updateProject(Project oldProject, Project updatedProject) {
-        if (!allProjects.contains(oldProject) || oldProject.getManagerInCharge() != this) {
-            System.out.println("Update failed: Unauthorized or not found.");
-            return;
+    // --- PROJECT MANAGEMENT ---
+
+    public Project createProject(Project p) {
+        validateNoOverlap(p);
+        projectRepo.add(p);
+        return p;
+    }
+
+    public Project updateProject(String projectID, Project updated) {
+        Project existing = findProject(projectID);
+        if (!existing.getManagerInCharge().equals(this)) {
+            throw new IllegalStateException("Unauthorized to edit this project");
         }
-        oldProject.setProjectName(updatedProject.getProjectName());
-        oldProject.setNeighborhood(updatedProject.getNeighborhood());
-        oldProject.setTwoRoomUnits(updatedProject.getTwoRoomUnits());
-        oldProject.setThreeRoomUnits(updatedProject.getThreeRoomUnits());
-        oldProject.setApplicationOpeningDate(updatedProject.getApplicationOpeningDate());
-        oldProject.setApplicationClosingDate(updatedProject.getApplicationClosingDate());
+        existing.setProjectName(updated.getProjectName());
+        existing.setNeighborhood(updated.getNeighborhood());
+        existing.setApplicationOpeningDate(updated.getApplicationOpeningDate());
+        existing.setApplicationClosingDate(updated.getApplicationClosingDate());
+        existing.setTwoRoomUnits(updated.getTwoRoomUnits());
+        existing.setThreeRoomUnits(updated.getThreeRoomUnits());
+        return existing;
     }
 
-    public boolean deleteProject(Project project) {
-        if (!allProjects.contains(project) || project.getManagerInCharge() != this) {
-            System.out.println("Delete failed: Unauthorized or not found.");
-            return false;
-        }
-        allProjects.remove(project);
-        return true;
+    public boolean deleteProject(String projectID) {
+        Project p = findProject(projectID);
+        if (!p.getManagerInCharge().equals(this)) return false;
+        return projectRepo.remove(p);
     }
 
-    public boolean toggleProjectVisibility(Project project, boolean visibility) {
-        if (!allProjects.contains(project) || project.getManagerInCharge() != this) {
-            System.out.println("Toggle failed: Unauthorized or not found.");
-            return false;
+    public void toggleProjectVisibility(String projectID) {
+        Project p = findProject(projectID);
+        if (!p.getManagerInCharge().equals(this)) {
+            throw new IllegalStateException("Unauthorized to toggle visibility");
         }
-        project.setVisibility(visibility);
-        return true;
+        p.toggleVisibility();
     }
 
     public List<Project> viewAllProjects() {
-        return new ArrayList<>(allProjects);
+        return Collections.unmodifiableList(projectRepo);
     }
 
-    public List<Project> viewCreatedProjects() {
+    public List<Project> viewMyProjects() {
         List<Project> mine = new ArrayList<>();
-        for (Project p : allProjects) {
-            if (p.getManagerInCharge() == this) {
+        for (Project p : projectRepo) {
+            if (p.getManagerInCharge().equals(this)) {
                 mine.add(p);
             }
         }
-        return mine;
+        return Collections.unmodifiableList(mine);
     }
 
-    /* ===================================
-       OFFICER REGISTRATION MANAGEMENT
-       =================================== */
+    private Project findProject(String projectID) {
+        return projectRepo.stream()
+            .filter(p -> p.getProjectID().equals(projectID))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectID));
+    }
 
-    public List<OfficerRegistration> viewOfficerRegistrations(Project project) {
-        List<OfficerRegistration> regs = new ArrayList<>();
-        for (OfficerRegistration r : allOfficerRegistrations) {
-            if (r.getProject() == project) {
-                regs.add(r);
+    private void validateNoOverlap(Project newProject) {
+        for (Project existing : viewMyProjects()) {
+            if (datesOverlap(existing, newProject)) {
+                throw new IllegalStateException("Project application period overlaps an existing project");
             }
         }
-        return regs;
     }
 
-    public void approveOfficerRegistration(OfficerRegistration registration) {
-        if (allOfficerRegistrations.contains(registration)
-                && registration.getProject().getManagerInCharge() == this) {
-            registration.setStatus("Approved");
-        } else {
-            System.out.println("Approval failed: Unauthorized or not found.");
-        }
+    private boolean datesOverlap(Project a, Project b) {
+        LocalDate aStart = a.getApplicationOpeningDate();
+        LocalDate aEnd   = a.getApplicationClosingDate();
+        LocalDate bStart = b.getApplicationOpeningDate();
+        LocalDate bEnd   = b.getApplicationClosingDate();
+        return !aEnd.isBefore(bStart) && !bEnd.isBefore(aStart);
     }
 
-    public void rejectOfficerRegistration(OfficerRegistration registration) {
-        if (allOfficerRegistrations.contains(registration)
-                && registration.getProject().getManagerInCharge() == this) {
-            registration.setStatus("Rejected");
-        } else {
-            System.out.println("Rejection failed: Unauthorized or not found.");
+    // --- OFFICER REGISTRATION MANAGEMENT ---
+
+    public OfficerRegistration approveOfficerRegistration(int registrationID) {
+        OfficerRegistration reg = findRegistration(registrationID);
+        if (!reg.getProject().getManagerInCharge().equals(this)) {
+            throw new IllegalStateException("Unauthorized to approve this registration");
         }
+        reg.setStatus(RegistrationStatus.Approved);
+        reg.getProject().occupyOfficerSlot();
+        return reg;
     }
 
-    /* ============================
-       APPLICATION MANAGEMENT
-       ============================ */
-
-    public boolean approveApplication(Application application) {
-        if (application == null || application.getStatus() != ApplicationStatus.Pending) {
-            return false;
+    public OfficerRegistration rejectOfficerRegistration(int registrationID) {
+        OfficerRegistration reg = findRegistration(registrationID);
+        if (!reg.getProject().getManagerInCharge().equals(this)) {
+            throw new IllegalStateException("Unauthorized to reject this registration");
         }
-        FlatType type = application.getFlatTypeChosen();
-        Project project = application.getProject();
-
-        boolean success = false;
-        if (type == FlatType.Two_Room && project.getTwoRoomUnits() > 0) {
-            project.setTwoRoomUnits(project.getTwoRoomUnits() - 1);
-            success = true;
-        } else if (type == FlatType.Three_Room && project.getThreeRoomUnits() > 0) {
-            project.setThreeRoomUnits(project.getThreeRoomUnits() - 1);
-            success = true;
-        }
-
-        application.setStatus(success ? ApplicationStatus.Successful : ApplicationStatus.Unsuccessful);
-        return success;
+        reg.setStatus(RegistrationStatus.Rejected);
+        return reg;
     }
 
-    public boolean rejectApplication(Application application) {
-        if (application == null || application.getStatus() != ApplicationStatus.Pending) {
-            return false;
-        }
-        application.setStatus(ApplicationStatus.Unsuccessful);
-        return true;
+    private OfficerRegistration findRegistration(int id) {
+        return officerRegRepo.stream()
+            .filter(r -> r.getId() == id)
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Registration not found: " + id));
     }
 
-    /* ============================
-       WITHDRAWAL MANAGEMENT
-       ============================ */
+    // --- APPLICATION APPROVAL & REJECTION ---
 
-       public boolean approveWithdrawal(Application application) {
-        if (application == null || !application.isWithdrawalRequested()) {
-            return false;
-        }
-
-        ApplicationStatus current = application.getStatus();
-        Project project = application.getProject();
-        FlatType type = application.getFlatTypeChosen();
-
-        // If previously booked, return the unit
-        if (current == ApplicationStatus.Booked) {
-            if (type == FlatType.Two_Room) {
-                project.setTwoRoomUnits(project.getTwoRoomUnits() + 1);
-            } else {
-                project.setThreeRoomUnits(project.getThreeRoomUnits() + 1);
-            }
-        }
-
-        // Mark as withdrawn
-        application.setStatus(ApplicationStatus.Withdrawn); // add Withdrawn to enum if needed
-        return true;
+    public Application approveApplication(String applicationID) {
+        Application app = findApplication(applicationID);
+        app.approve();
+        return app;
     }
 
-    /* ===================================================== 
-       Reject a Withdrawal Request
-    ===================================================== */
-    public boolean rejectWithdrawal(Application application) {
-        if (application == null || !application.isWithdrawalRequested()) {
-            return false;
-        }
-        // Simply clear the withdrawal request flag; leave status as-is (Pending or Booked)
-        application.setWithdrawalRequest(false);
-        return true;
+    public Application rejectApplication(String applicationID) {
+        Application app = findApplication(applicationID);
+        app.reject();
+        return app;
     }
 
-    /* ============================
-       REPORT GENERATION
-       ============================ */
-
-    public String generateFlatBookingReport(List<Application> applications) {
-        StringBuilder report = new StringBuilder();
-        for (Application app : applications) {
-            if (app.getStatus() == ApplicationStatus.Booked) {
-                report.append("Applicant: ").append(app.getApplicant().getNric())
-                      .append(", Age: ").append(app.getApplicant().getAge())
-                      .append(", Marital: ").append(app.getApplicant().getMaritalStatus())
-                      .append(", Flat: ").append(app.getFlatTypeChosen())
-                      .append(", Project: ").append(app.getProject().getProjectName())
-                      .append(" (").append(app.getProject().getNeighborhood()).append(")\n");
-            }
-        }
-        return report.toString();
+    private Application findApplication(String applicationID) {
+        return projectRepo.stream()
+            .flatMap(p -> p.getApplications().stream())
+            .filter(a -> a.getApplicationID().equals(applicationID))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Application not found: " + applicationID));
     }
 
-    /* ============================
-       ENQUIRY MANAGEMENT
-       ============================ */
+    // --- WITHDRAWAL MANAGEMENT ---
 
-    public List<Enquiry> viewAllEnquiries() {
-        List<Enquiry> all = new ArrayList<>();
-        for (Project p : allProjects) {
-            all.addAll(p.getEnquiries());
-        }
-        return all;
+    public Application processWithdrawal(String applicationID) {
+        Application app = findApplication(applicationID);
+        app.withdraw();
+        return app;
     }
 
-    public boolean replyToEnquiry(Enquiry enquiry, String replyText) {
-        if (enquiry == null || replyText == null || replyText.trim().isEmpty()) {
-            return false;
-        }
-        enquiry.addReply(enquiry.getEnquiryID(), replyText);
-        enquiry.setRepliedBy(this);
-        return true;
+    // --- REPORT GENERATION ---
+
+    public String generateFlatBookingReport() {
+        StringBuilder sb = new StringBuilder();
+        projectRepo.stream()
+            .flatMap(p -> p.getApplications().stream())
+            .filter(a -> a.getStatus() == ApplicationStatus.BOOKED)
+            .forEach(a -> sb.append(a).append("\n"));
+        return sb.toString();
     }
 }

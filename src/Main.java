@@ -1,16 +1,23 @@
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+// Main.java
+
 public class Main {
     public static void main(String[] args) {
-        //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
-        // to see how IntelliJ IDEA suggests fixing it.
-        System.out.print("Hello from Main.java!\n");
+        // 1) Initialize repositories
+        UserRepository userRepo          = new CsvUserRepository("users.csv");
+        ProjectRepository projectRepo    = new CsvProjectRepository("projects.csv");
+        OfficerRegistrationRepository regRepo =
+            new InMemoryOfficerRegistrationRepository();
 
-            OfficerData officer = new OfficerData("John Doe");
-            CLIView view = new CLIView();
+        // 2) Authentication handler
+        LoginHandler auth = new LoginHandler(userRepo);
 
-            view.applyForProject(officer);
-            view.registerAsOfficer(officer);
+        // 3) Launch CLI
+        MainMenu menu = new MainMenu(auth, userRepo, projectRepo, regRepo);
+        menu.run();
 
+        // 4) On exit, persist any changes
+        userRepo.saveAll(userRepo.findAll());
+        projectRepo.saveAll(projectRepo.findAll());
+        regRepo.saveAll(regRepo.findAll());
     }
 }

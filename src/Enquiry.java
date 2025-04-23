@@ -1,43 +1,38 @@
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import enums.EnquiryStatus;
 
 /**
  * Represents a project enquiry submitted by an applicant.
  */
 public class Enquiry {
-    private static int nextId = 1;
+    private static final AtomicInteger ID_GEN = new AtomicInteger(1);
 
     private final int enquiryID;
     private final Applicant applicant;
     private final Project project;
+
     private String enquiryText;
-    private final Date dateSubmitted;
-    private String reply;
-    private Date replyDate;
+    private final LocalDateTime dateSubmitted;
+
+    private String replyText;
+    private LocalDateTime replyDate;
     private User repliedBy;
-    private String status;  // "Pending" or "Replied"
 
-    /**
-     * Constructs a new Enquiry, assigns a unique ID, and registers it
-     * with both the applicant and the project.
-     *
-     * @param applicant   the applicant making the enquiry
-     * @param project     the project the enquiry is about
-     * @param enquiryText the enquiry content
-     */
+    private EnquiryStatus status;
+
     public Enquiry(Applicant applicant, Project project, String enquiryText) {
-        this.enquiryID = nextId++;
-        this.applicant = applicant;
-        this.project = project;
-        this.enquiryText = enquiryText;
-        this.dateSubmitted = new Date();
-        this.reply = "";
-        this.replyDate = null;
-        this.repliedBy = null;
-        this.status = "Pending";
+        this.enquiryID     = ID_GEN.getAndIncrement();
+        this.applicant     = applicant;
+        this.project       = project;
+        this.enquiryText   = enquiryText;
+        this.dateSubmitted = LocalDateTime.now();
+        this.status        = EnquiryStatus.Pending;
 
-        // Automatically add to applicant's and project's lists
+        // link back into the applicant's list and the project's list
         applicant.getEnquiries().add(this);
-        project.getEnquiries().add(this);
+        project.addEnquiry(this);
     }
 
     public int getEnquiryID() {
@@ -56,15 +51,15 @@ public class Enquiry {
         return enquiryText;
     }
 
-    public Date getDateSubmitted() {
+    public LocalDateTime getDateSubmitted() {
         return dateSubmitted;
     }
 
-    public String getReply() {
-        return reply;
+    public String getReplyText() {
+        return replyText;
     }
 
-    public Date getReplyDate() {
+    public LocalDateTime getReplyDate() {
         return replyDate;
     }
 
@@ -72,54 +67,44 @@ public class Enquiry {
         return repliedBy;
     }
 
-    public String getStatus() {
+    public EnquiryStatus getStatus() {
         return status;
     }
 
-    /**
-     * Edits this enquiry’s text if the ID matches.
-     *
-     * @param enquiryID the ID to match
-     * @param newText   the new enquiry text
-     */
-    public void editEnquiry(int enquiryID, String newText) {
-        if (this.enquiryID == enquiryID) {
-            this.enquiryText = newText;
+    /** Edit the enquiry text. */
+    public void edit(String newText) {
+        if (status == EnquiryStatus.Replied) {
+            throw new IllegalStateException("Cannot edit after a reply");
         }
+        this.enquiryText = newText;
     }
 
-    /**
-     * Deletes this enquiry from both the applicant and project lists if the ID matches.
-     *
-     * @param enquiryID the ID to match
-     */
-    public void deleteEnquiry(int enquiryID) {
-        if (this.enquiryID == enquiryID) {
-            applicant.getEnquiries().remove(this);
-            project.getEnquiries().remove(this);
+    /** Reply to this enquiry. */
+    public void reply(String replyText, User replier) {
+        if (status == EnquiryStatus.Replied) {
+            throw new IllegalStateException("Already replied");
         }
+        this.replyText   = replyText;
+        this.replyDate   = LocalDateTime.now();
+        this.repliedBy   = replier;
+        this.status      = EnquiryStatus.Replied;
     }
 
-    /**
-     * Adds a reply to this enquiry if the ID matches, setting reply text, date, status.
-     *
-     * @param enquiryID the ID to match
-     * @param replyText the reply content
-     */
-    public void addReply(int enquiryID, String replyText) {
-        if (this.enquiryID == enquiryID) {
-            this.reply = replyText;
-            this.replyDate = new Date();
-            this.status = "Replied";
-            // Note: repliedBy should be set by the caller (e.g., HDBManagerMenu),
-            // for example via enquiry.setRepliedBy(currentUser).
-        }
+    /** Delete this enquiry from both applicant and project. */
+    public void delete() {
+        applicant.getEnquiries().remove(this);
+        project.getEnquiries().remove(this);
     }
 
-    /**
-     * Optionally allow setting who replied.
-     */
-    public void setRepliedBy(User user) {
-        this.repliedBy = user;
+    @Override
+    public String toString() {
+        return String.format(
+            "[%d] %s → \"%s\" (%s)%s",
+            enquiryID,
+            applicant.getNric(),
+            enquiryText,
+            status,
+            (status == EnquiryStatus.Replied ? " Replied: \"" + replyText + "\"" : "")
+        );
     }
 }
