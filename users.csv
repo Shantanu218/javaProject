@@ -1,0 +1,11 @@
+nric,password,age,maritalStatus,role
+S1234567A,password,35,Single,Applicant
+T7654321B,password,40,Married,Applicant
+S9876543C,password,37,Married,Applicant
+T2345678D,password,30,Married,Applicant
+S3456789E,password,25,Single,Applicant
+T8765432F,password,36,Single,Manager
+S5678901G,password,26,Married,Manager
+T2109876H,password,36,Single,Officer
+S6543210I,password,28,Single,Officer
+T1234567J,password,29,Married,Officer
